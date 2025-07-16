@@ -1,5 +1,5 @@
 import { useModal } from "../hooks/useModal";
-import { Modal } from "../ui/modal";
+import { Modal } from "../ui/Modal";
 import Button from "../Buttons/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
