@@ -1,7 +1,4 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-name: Build and deploy Node.js app to Azure Web App - TexasCollegeBackend
+name: Deploy Backend to Azure
 
 on:
   push:
@@ -11,57 +8,71 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22.x'
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '22.x'
 
-      - name: npm install, build, and test
-        working-directory: ./Backenda
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
-      
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-app
-          path: .
+    - name: Change to Backend directory and install
+      run: |
+        echo "=== Current location ==="
+        pwd
+        echo "=== Root contents ==="
+        ls -la
+        echo "=== Moving to Backend folder ==="
+        cd Backend
+        echo "=== Backend contents ==="
+        ls -la
+        echo "=== Installing dependencies ==="
+        npm install
+
+    - name: Build Backend
+      run: |
+        cd Backend
+        npm run build --if-present
+
+    - name: Test Backend
+      run: |
+        cd Backend
+        npm run test --if-present
+
+    - name: Upload Backend files
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-app
+        path: Backend
 
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
 
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: node-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_49D233250A184B2A8D5512AF424C292C }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9698AE7E77CD405E9B9205CFAC7C7CEB }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7DA6E6E939E54841AF3E1A1E9908AD29 }}
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: backend-app
 
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
-          app-name: 'TexasCollegeBackend'
-          slot-name: 'Production'
-          package: .
-          
+    - name: Login to Azure
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_49D233250A184B2A8D5512AF424C292C }}
+        tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9698AE7E77CD405E9B9205CFAC7C7CEB }}
+        subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7DA6E6E939E54841AF3E1A1E9908AD29 }}
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: 'TexasCollegeBackend'
+        slot-name: 'Production'
+        package: .
