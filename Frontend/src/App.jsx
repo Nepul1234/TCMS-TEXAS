@@ -83,7 +83,7 @@ export default function App() {
       <Route path="/registration" element={<Registration/>} />
       <Route path="/payment" element={<Payment/>} />
       <Route path='/header' element={<Header/>}/>
-      <Route path="/login" element={<Login/>} />
+      <Route path="/" element={<Login/>} />
       <Route path="/table" element={<BasicTable/>} />
       <Route path="/mincome" element={<MonthlyIncomeChart/>} />
       <Route path="/mtarget" element={<MonthlyTarget/>}/>
