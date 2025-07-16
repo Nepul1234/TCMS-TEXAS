@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../../components/Header/Header';
 import { useModal } from "../../components/hooks/useModal";
-import { Modal } from "../../components/ui/modal";
+import { Modal } from "../../components/ui/Modal";
 import Button from "../../components/Buttons/Button";
 import Sidebar from '../../components/Sidebar/Sidebar';
 import StudentIdCard from '../../components/others/StudentID';

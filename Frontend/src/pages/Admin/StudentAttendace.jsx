@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, DollarSign, User, BookOpen, Clock, CreditCard, CheckCircle, AlertTriangle } from 'lucide-react';
-import { Modal } from "../../components/ui/modal.jsx";
+import { Modal } from "../../components/ui/Modal.jsx";
 import Button from '../../components/Buttons/Button.jsx';
 import { useModal } from "../../components/hooks/useModal.js";
 import QRScannerComponent from '../../components/others/QRScannerModel.jsx';

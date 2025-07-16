@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import PDFExportComponent from './PDFGenerator';
 import { useModal } from '../hooks/useModal';
-import { Modal } from '../ui/modal';
+import { Modal } from '../ui/Modal';
 import Button from '../Buttons/Button';
 import Swal from 'sweetalert2';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useModal } from "../../components/hooks/useModal";
-import { Modal } from "../../components/ui/modal";
+import { Modal } from "../../components/ui/Modal";
 import Button from "../../components/Buttons/Button";
 
 
