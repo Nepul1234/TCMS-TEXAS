@@ -1,0 +1,40 @@
+# Simple Backend Only Deployment
+# File: .github/workflows/deploy-backend.yml
+
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'Backend/**' ]  # Only trigger when Backend folder changes
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 'Navigate to Backend and install dependencies'
+      run: |
+        cd Backend
+        npm install
+        
+    - name: 'Run tests if available'
+      run: |
+        cd Backend
+        npm run test --if-present
+        
+    - name: 'Deploy to Azure Web App'
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'your-backend-app-name'  # Replace with your actual App Service name
+        slot-name: 'Production'
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+        package: ./Backend

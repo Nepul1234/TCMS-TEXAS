@@ -8,7 +8,6 @@ import Sidebar from '../../components/Sidebar/Sidebar'
 import Footer from '../../components/Footer/Footer';
 import NewFooter from '../../components/Footer/NewFooter';
 import StudentIdCard from '../../components/others/StudentID'
-import IDCardGenerator from "../../components/ID generator/IdCardGenerator";
 import { Notyf } from "notyf";
 import { useAuth } from "../../components/context/AuthContext";
 

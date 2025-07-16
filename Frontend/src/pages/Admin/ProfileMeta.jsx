@@ -1,5 +1,5 @@
 import { useModal } from "../../components/hooks/useModal";
-import { Modal } from "../../components/ui/modal"
+import { Modal } from "../../components/ui/Modal"
 import  Button  from "../../components/Buttons/Button";
 import StudentIdCard from "../../components/others/StudentID";
 import { useAuth } from "../../components/context/AuthContext";

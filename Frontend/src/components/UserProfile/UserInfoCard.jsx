@@ -24,7 +24,6 @@ export default function UserInfoCard() {
     email:"",
     address:"",
     gender:"",
-    address:"",
     phone:"",
     role:role
   });
