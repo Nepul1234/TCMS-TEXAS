@@ -22,8 +22,15 @@ jobs:
         with:
           submodules: true
           lfs: false
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
       - name: Install OIDC Client from Core Package
         run: npm install @actions/core@1.6.0 @actions/http-client
+        
       - name: Get Id Token
         uses: actions/github-script@v6
         id: idtoken
@@ -32,20 +39,40 @@ jobs:
                const coredemo = require('@actions/core')
                return await coredemo.getIDToken()
            result-encoding: string
+           
+      # Debug step to understand your project structure
+      - name: Debug project structure
+        run: |
+          echo "=== Root directory ==="
+          ls -la
+          echo "=== Frontend directory ==="
+          if [ -d "Frontend" ]; then
+            ls -la Frontend/
+            if [ -f "Frontend/package.json" ]; then
+              echo "=== Frontend package.json ==="
+              cat Frontend/package.json | grep -A 10 -B 5 '"scripts"'
+            fi
+          else
+            echo "Frontend directory not found"
+          fi
+          
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_POND_0F8A83210 }}
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
+          ###### Repository/Build Configurations ######
           app_location: "./Frontend" # App source code path
-          api_location: "" # Api source code path - optional
-          output_location: "build" # Built app content directory - optional
+          api_location: "" # Leave empty if no backend API for SWA
+          output_location: "build" # This should match your React build output
+          # Alternative common output locations:
+          # output_location: "dist" # For Vite
+          # output_location: "out" # For Next.js
+          # output_location: "" # If build files are in root of app_location
           github_id_token: ${{ steps.idtoken.outputs.result }}
           ###### End of Repository/Build Configurations ######
-
+          
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -55,4 +82,5 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_POND_0F8A83210 }}
           action: "close"
