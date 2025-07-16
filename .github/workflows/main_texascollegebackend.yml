@@ -11,68 +11,153 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '22.x'
-
-    - name: Change to Backend directory and install
+        node-version: '18.x'  # Changed from 22.x to 18.x for better compatibility
+        cache: 'npm'
+        
+    - name: Debug repository structure
       run: |
         echo "=== Current location ==="
         pwd
         echo "=== Root contents ==="
         ls -la
-        echo "=== Moving to Backend folder ==="
-        cd Backend
-        echo "=== Backend contents ==="
-        ls -la
-        echo "=== Installing dependencies ==="
-        npm install
-
+        echo "=== Looking for package.json files ==="
+        find . -name "package.json" -type f
+        echo "=== Looking for Backend directory ==="
+        if [ -d "Backend" ]; then
+          echo "Backend directory exists"
+          ls -la Backend/
+        else
+          echo "Backend directory does not exist"
+        fi
+        echo "=== Looking for api directory ==="
+        if [ -d "api" ]; then
+          echo "api directory exists"
+          ls -la api/
+        else
+          echo "api directory does not exist"
+        fi
+        
+    - name: Install dependencies
+      run: |
+        if [ -f "Backend/package.json" ]; then
+          echo "=== Installing from Backend directory ==="
+          cd Backend
+          npm ci
+        elif [ -f "package.json" ]; then
+          echo "=== Installing from root directory ==="
+          npm ci
+        else
+          echo "ERROR: No package.json found!"
+          exit 1
+        fi
+        
     - name: Build Backend
       run: |
-        cd Backend
-        npm run build --if-present
-
+        if [ -f "Backend/package.json" ]; then
+          cd Backend
+          npm run build --if-present
+        else
+          npm run build --if-present
+        fi
+        
     - name: Test Backend
       run: |
-        cd Backend
-        npm run test --if-present
-
+        if [ -f "Backend/package.json" ]; then
+          cd Backend
+          npm run test --if-present
+        else
+          npm run test --if-present
+        fi
+        
+    - name: Prepare deployment package
+      run: |
+        mkdir -p deployment-package
+        if [ -d "Backend" ]; then
+          echo "=== Copying Backend directory ==="
+          cp -r Backend/* deployment-package/
+        else
+          echo "=== Copying root files ==="
+          # Copy backend files from root
+          cp package*.json deployment-package/
+          cp -r api deployment-package/ 2>/dev/null || echo "No api directory found"
+          cp -r node_modules deployment-package/ 2>/dev/null || echo "No node_modules found"
+          # Copy other necessary files
+          find . -maxdepth 1 -name "*.js" -exec cp {} deployment-package/ \;
+          find . -maxdepth 1 -name "*.json" -not -name "package*.json" -exec cp {} deployment-package/ \;
+          # Copy .env files if they exist
+          cp .env* deployment-package/ 2>/dev/null || echo "No .env files found"
+        fi
+        echo "=== Deployment package contents ==="
+        ls -la deployment-package/
+        
     - name: Upload Backend files
       uses: actions/upload-artifact@v4
       with:
         name: backend-app
-        path: Backend
-
+        path: deployment-package
+        
   deploy:
     runs-on: ubuntu-latest
     needs: build
     permissions:
       id-token: write
       contents: read
-
     steps:
     - name: Download artifact
       uses: actions/download-artifact@v4
       with:
         name: backend-app
-
+        path: ./backend-app
+        
+    - name: Debug downloaded artifact
+      run: |
+        echo "=== Downloaded artifact contents ==="
+        ls -la backend-app/
+        echo "=== Checking for package.json ==="
+        if [ -f "backend-app/package.json" ]; then
+          echo "package.json found"
+          cat backend-app/package.json | grep -E '"name"|"main"|"scripts"' || echo "Could not parse package.json"
+        else
+          echo "ERROR: package.json not found in artifact!"
+          exit 1
+        fi
+        
     - name: Login to Azure
       uses: azure/login@v2
       with:
         client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_49D233250A184B2A8D5512AF424C292C }}
         tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_9698AE7E77CD405E9B9205CFAC7C7CEB }}
         subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7DA6E6E939E54841AF3E1A1E9908AD29 }}
-
+        
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
       with:
         app-name: 'TexasCollegeBackend'
         slot-name: 'Production'
-        package: .
+        package: ./backend-app
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}  # Alternative to managed identity
+        
+    - name: Configure Azure App via CLI (Alternative to App Settings)
+      run: |
+        # Configure startup command
+        az webapp config set --resource-group your-resource-group --name TexasCollegeBackend --startup-file "npm start"
+        
+        # Set Node.js version
+        az webapp config set --resource-group your-resource-group --name TexasCollegeBackend --linux-fx-version "NODE|18-lts"
+        
+        echo "Azure configuration completed via CLI"
+        
+    - name: Verify deployment
+      run: |
+        echo "Deployment completed. Checking app status..."
+        # Wait a moment for the app to start
+        sleep 30
+        # You can add a health check here if your API has a health endpoint
+        # curl -f https://texascollegebackend.azurewebsites.net/health || echo "Health check failed"
