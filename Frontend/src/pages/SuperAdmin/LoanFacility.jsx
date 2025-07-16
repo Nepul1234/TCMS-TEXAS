@@ -169,7 +169,6 @@ const LoanFacilityManagement = () => {
         requestDate: (formData.requestDate.split('T')[0]),
         monthlyDeduction: parseFloat(formData.monthlyDeduction) || 0 ,
         amount: parseFloat(formData.amount),
-        monthlyDeduction: parseFloat(formData.monthlyDeduction) || 0,
         type: formData.type || 'Monthly deduction',
       })
     });
