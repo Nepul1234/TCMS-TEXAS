@@ -71,40 +71,62 @@ const app = express();
 const PORT = process.env.PORT || 8080; // Azure uses PORT environment variable
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+console.log(`🚀 Starting TCMS Backend Server`);
+console.log(`🌍 Environment: ${NODE_ENV}`);
+console.log(`🔌 Port: ${PORT}`);
+
 // Trust proxy for Azure App Service
 app.set('trust proxy', 1);
 
 // CORS configuration for Azure
 const corsOptions = {
   origin: function (origin, callback) {
+    console.log(`🌐 CORS request from origin: ${origin}`);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('✅ Allowing request with no origin');
+      return callback(null, true);
+    }
     
     // Define allowed origins based on environment
     const allowedOrigins = NODE_ENV === 'production' 
       ? [
-        process.env.FRONTEND_URL,
-        /^https:\/\/mango-pond-0f8a83210\.2\.azurestaticapps\.net$/,
-        /\.azurestaticapps\.net$/
-      ]
-      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+        'https://mango-pond-0f8a83210.2.azurestaticapps.net',
+        'https://texascollegebackend.azurewebsites.net',
+        process.env.FRONTEND_URL
+      ].filter(Boolean) // Remove undefined values
+      : [
+        'http://localhost:3000', 
+        'http://localhost:3001', 
+        'http://localhost:5173',
+        'http://localhost:5174'
+      ];
+    
+    console.log(`🔍 Allowed origins:`, allowedOrigins);
     
     // Check if origin is allowed
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (typeof allowedOrigin === 'string') {
-        return origin === allowedOrigin;
-      }
-      return allowedOrigin.test(origin);
-    });
+    const isAllowed = allowedOrigins.includes(origin);
     
     if (isAllowed) {
+      console.log(`✅ Origin allowed: ${origin}`);
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.log(`❌ Origin blocked: ${origin}`);
+      callback(new Error(`CORS: Origin ${origin} not allowed`));
     }
   },
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control'
+  ]
 };
 
 app.use(cors(corsOptions));
@@ -130,7 +152,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.example.com"] // Add your API domains
+      connectSrc: ["'self'", "*.azurestaticapps.net", "*.azurewebsites.net"] 
     }
   }
 }));
@@ -148,7 +170,7 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Skip rate limiting for health checks
-  skip: (req) => req.path === '/api/health'
+  skip: (req) => req.path === '/health' || req.path === '/api/health'
 });
 app.use('/api/', limiter);
 
@@ -158,29 +180,61 @@ const initializeServices = async () => {
   try {
     await initializeAzureStorage();
     azureInitialized = true;
-    console.log('Azure services initialized successfully');
+    console.log('✅ Azure services initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize Azure services:', error);
+    console.error('❌ Failed to initialize Azure services:', error);
     azureInitialized = false;
   }
 };
 
-// Health check endpoint for Azure
-app.get('/api/health', async (req, res) => {
+// Root endpoint - FIXED: This should work for your Postman test
+app.get('/', (req, res) => {
+  console.log(`📍 Root endpoint accessed from ${req.ip}`);
+  res.status(200).json({ 
+    success: true,
+    message: 'TCMS Backend API is running successfully on Azure',
+    environment: NODE_ENV,
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    status: 'operational',
+    endpoints: {
+      health: '/health',
+      apiHealth: '/api/health',
+      documentation: '/api/docs'
+    }
+  });
+});
+
+// Health check endpoint for Azure (both /health and /api/health)
+app.get('/health', async (req, res) => {
   try {
-    const azureConnected = await testAzureConnection();
+    console.log(`🏥 Health check accessed from ${req.ip}`);
     
-    res.status(200).json({
+    let azureConnected = false;
+    try {
+      azureConnected = await testAzureConnection();
+    } catch (error) {
+      console.error('Azure connection test failed:', error);
+    }
+    
+    const healthData = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: NODE_ENV,
+      uptime: Math.floor(process.uptime()),
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100,
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024 * 100) / 100
+      },
       services: {
         azureBlob: azureConnected ? 'Connected' : 'Disconnected',
         azureInitialized: azureInitialized
-      },
-      uptime: process.uptime()
-    });
+      }
+    };
+    
+    res.status(200).json(healthData);
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
@@ -189,13 +243,54 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Hello World! API is running on Azure',
+app.get('/api/health', async (req, res) => {
+  // Redirect to /health for consistency
+  req.url = '/health';
+  return app._router.handle(req, res);
+});
+
+// API documentation endpoint
+app.get('/api/docs', (req, res) => {
+  res.status(200).json({
+    title: 'TCMS Backend API Documentation',
+    version: '1.0.0',
+    description: 'Texas College Management System Backend API',
+    baseUrl: NODE_ENV === 'production' 
+      ? 'https://texascollegebackend.azurewebsites.net'
+      : `http://localhost:${PORT}`,
     environment: NODE_ENV,
-    timestamp: new Date().toISOString()
+    endpoints: {
+      authentication: {
+        prefix: '/api/auth',
+        routes: ['POST /login', 'POST /register', 'POST /logout', 'POST /refresh']
+      },
+      admin: {
+        courses: '/api/courses',
+        payments: '/api/payments',
+        dashboard: '/api/dashboard',
+        notices: '/api/notices'
+      },
+      student: {
+        registration: '/api/registration',
+        courses: '/api/course_registration',
+        payments: '/api/student_payment',
+        schedules: '/api/schedules',
+        quiz: '/api/quiz'
+      },
+      tutor: {
+        profile: '/api/get_tutor_profile_data',
+        courses: '/api/getTutorcoursesGetByTutorId',
+        announcements: '/api/getTutorAnnouncement',
+        earnings: '/api/get_tutor_earnings'
+      }
+    }
   });
+});
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - ${req.ip}`);
+  next();
 });
 
 // Admin routes
@@ -260,15 +355,29 @@ app.use('/api/quiz', quizStudentRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: `Route not found: ${req.method} ${req.originalUrl}`,
+    timestamp: new Date().toISOString(),
+    availableEndpoints: [
+      'GET /',
+      'GET /health',
+      'GET /api/health',
+      'GET /api/docs'
+    ]
   });
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('❌ Error occurred:', {
+    message: err.message,
+    stack: NODE_ENV === 'development' ? err.stack : undefined,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
   
   const statusCode = err.statusCode || 500;
   const message = NODE_ENV === 'production' 
@@ -279,18 +388,19 @@ app.use((err, req, res, next) => {
     success: false,
     statusCode,
     message,
+    timestamp: new Date().toISOString(),
     ...(NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
 // Graceful shutdown handler
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  console.log('🛑 SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  console.log('🛑 SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 
@@ -299,20 +409,38 @@ const startServer = async () => {
   try {
     await initializeServices();
     
-    const server = app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-      console.log(`Environment: ${NODE_ENV}`);
-      console.log(`Azure services initialized: ${azureInitialized}`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log('🎉 ==========================================');
+      console.log('📊 TCMS Backend Server Started Successfully');
+      console.log('🎉 ==========================================');
+      console.log(`🔌 Port: ${PORT}`);
+      console.log(`🌍 Environment: ${NODE_ENV}`);
+      console.log(`⏰ Started at: ${new Date().toISOString()}`);
+      console.log(`💾 Azure services: ${azureInitialized ? '✅ Initialized' : '❌ Failed'}`);
+      
+      if (NODE_ENV === 'production') {
+        console.log(`🌐 Production URL: https://texascollegebackend.azurewebsites.net`);
+        console.log(`🎯 Frontend URL: https://mango-pond-0f8a83210.2.azurestaticapps.net`);
+        console.log(`🏥 Health Check: https://texascollegebackend.azurewebsites.net/health`);
+        console.log(`📚 API Docs: https://texascollegebackend.azurewebsites.net/api/docs`);
+      } else {
+        console.log(`🔧 Local URL: http://localhost:${PORT}`);
+        console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
+      }
+      console.log('🎉 ==========================================');
     });
     
     // Handle server errors
     server.on('error', (err) => {
-      console.error('Server error:', err);
+      console.error('❌ Server error:', err);
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use`);
+      }
       process.exit(1);
     });
     
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
