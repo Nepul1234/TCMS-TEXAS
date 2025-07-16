@@ -78,6 +78,7 @@ import QuizCreator from './pages/Tutor/QuizCreator'
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Login />} />
       <Route path="/admin" element={<Home />} />
       <Route path="/attendance" element={<Attendance/>} />
       <Route path="/registration" element={<Registration/>} />
