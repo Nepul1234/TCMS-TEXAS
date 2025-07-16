@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import IDCardGenerator from "../../components/ID generator/IdCardGenerator"; 
+//import IDCardGenerator from "../../components/ID generator/IdCardGenerator"; 
 
 const ParentComponent = () => {
   const [student, setStudent] = useState(null);
