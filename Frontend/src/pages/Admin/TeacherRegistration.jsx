@@ -7,7 +7,7 @@ import  Button  from "../../components/Buttons/Button";
 import Sidebar from '../../components/Sidebar/Sidebar'
 import StudentIdCard from '../../components/others/StudentID'
 import TutorIdCard from '../../components/others/TutorID';
-import IDCardGenerator from "../../components/ID generator/IdCardGenerator";
+//import IDCardGenerator from "../../components/ID generator/IdCardGenerator";
 import { Notyf } from "notyf";
 import "notyf/notyf.min.css";
 
