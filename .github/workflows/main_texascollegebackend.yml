@@ -19,90 +19,59 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '18.x'
-        # Remove cache configuration to avoid lock file issues
-        # cache: 'npm'
+        cache: 'npm'
+        cache-dependency-path: 'Backend/package-lock.json'
         
-    - name: Debug repository structure
+    - name: Debug Backend structure
       run: |
-        echo "=== Current location ==="
-        pwd
-        echo "=== Root contents ==="
-        ls -la
-        echo "=== Looking for package.json files ==="
-        find . -name "package.json" -type f
-        echo "=== Looking for lock files ==="
-        find . -name "package-lock.json" -o -name "yarn.lock" -o -name "npm-shrinkwrap.json" -type f
-        echo "=== Backend directory check ==="
-        if [ -d "Backend" ]; then
-          echo "Backend directory exists"
-          ls -la Backend/
+        echo "=== Backend directory contents ==="
+        ls -la Backend/
+        echo "=== Checking for lock file ==="
+        if [ -f "Backend/package-lock.json" ]; then
+          echo "✅ package-lock.json found"
         else
-          echo "Backend directory does not exist"
+          echo "❌ package-lock.json not found"
         fi
         
-    - name: Install dependencies
+    - name: Install Backend dependencies
       run: |
-        if [ -f "Backend/package.json" ]; then
-          echo "=== Installing from Backend directory ==="
-          cd Backend
-          # Use npm install instead of npm ci to handle missing lock file
-          npm install
-        elif [ -f "package.json" ]; then
-          echo "=== Installing from root directory ==="
-          # Use npm install instead of npm ci to handle missing lock file
-          npm install
-        else
-          echo "ERROR: No package.json found!"
-          exit 1
+        cd Backend
+        # Generate lock file if it doesn't exist
+        if [ ! -f "package-lock.json" ]; then
+          echo "Generating package-lock.json..."
+          npm install --package-lock-only
         fi
+        npm ci
         
     - name: Build Backend
       run: |
-        if [ -f "Backend/package.json" ]; then
-          cd Backend
-          npm run build --if-present
-        else
-          npm run build --if-present
-        fi
+        cd Backend
+        npm run build --if-present
         
     - name: Test Backend
       run: |
-        if [ -f "Backend/package.json" ]; then
-          cd Backend
-          npm run test --if-present
-        else
-          npm run test --if-present
-        fi
+        cd Backend
+        npm run test --if-present
         
     - name: Prepare deployment package
       run: |
+        echo "=== Preparing Backend deployment package ==="
         mkdir -p deployment-package
-        if [ -d "Backend" ]; then
-          echo "=== Copying Backend directory ==="
-          cp -r Backend/* deployment-package/
-        else
-          echo "=== Copying root files ==="
-          # Copy backend files from root
-          cp package*.json deployment-package/
-          cp -r api deployment-package/ 2>/dev/null || echo "No api directory found"
-          # Copy other necessary files
-          find . -maxdepth 1 -name "*.js" -exec cp {} deployment-package/ \;
-          find . -maxdepth 1 -name "*.json" -not -name "package*.json" -exec cp {} deployment-package/ \;
-          # Copy .env files if they exist
-          cp .env* deployment-package/ 2>/dev/null || echo "No .env files found"
-        fi
         
-        # Create package-lock.json in deployment package to avoid issues
+        # Copy Backend files to deployment package
+        cp -r Backend/* deployment-package/
+        
+        # Remove development files to reduce size
         cd deployment-package
-        if [ ! -f "package-lock.json" ] && [ -f "package.json" ]; then
-          echo "Creating package-lock.json..."
-          npm install --package-lock-only
-        fi
+        rm -rf node_modules/ || echo "No node_modules to remove"
+        rm -rf coverage/ || echo "No coverage to remove"
+        rm -rf tests/ || echo "No tests to remove"
+        rm -rf .git/ || echo "No .git to remove"
         
         echo "=== Deployment package contents ==="
         ls -la
         
-    - name: Upload Backend files
+    - name: Upload Backend artifact
       uses: actions/upload-artifact@v4
       with:
         name: backend-app
@@ -121,16 +90,17 @@ jobs:
         name: backend-app
         path: ./backend-app
         
-    - name: Debug downloaded artifact
+    - name: Verify deployment package
       run: |
         echo "=== Downloaded artifact contents ==="
         ls -la backend-app/
-        echo "=== Checking for package.json ==="
+        echo "=== Checking package.json ==="
         if [ -f "backend-app/package.json" ]; then
-          echo "package.json found"
-          cat backend-app/package.json | grep -E '"name"|"main"|"scripts"' || echo "Could not parse package.json"
+          echo "✅ package.json found"
+          echo "Package name and scripts:"
+          cat backend-app/package.json | grep -E '"name"|"main"|"scripts"' -A 10 || echo "Could not parse package.json"
         else
-          echo "ERROR: package.json not found in artifact!"
+          echo "❌ ERROR: package.json not found!"
           exit 1
         fi
         
