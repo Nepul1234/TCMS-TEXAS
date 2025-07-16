@@ -51,7 +51,12 @@ jobs:
     - name: Test Backend
       run: |
         cd Backend
-        npm run test --if-present
+        # Skip tests if no real tests are configured
+        if npm run test --dry-run 2>&1 | grep -q "Error: no test specified"; then
+          echo "No tests specified, skipping test step"
+        else
+          npm run test
+        fi
         
     - name: Prepare deployment package
       run: |
