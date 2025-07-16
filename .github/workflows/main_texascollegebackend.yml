@@ -18,8 +18,9 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '22.x'  # Changed from 22.x to 18.x for better compatibility
-        cache: 'npm'
+        node-version: '18.x'
+        # Remove cache configuration to avoid lock file issues
+        # cache: 'npm'
         
     - name: Debug repository structure
       run: |
@@ -29,19 +30,14 @@ jobs:
         ls -la
         echo "=== Looking for package.json files ==="
         find . -name "package.json" -type f
-        echo "=== Looking for Backend directory ==="
+        echo "=== Looking for lock files ==="
+        find . -name "package-lock.json" -o -name "yarn.lock" -o -name "npm-shrinkwrap.json" -type f
+        echo "=== Backend directory check ==="
         if [ -d "Backend" ]; then
           echo "Backend directory exists"
           ls -la Backend/
         else
           echo "Backend directory does not exist"
-        fi
-        echo "=== Looking for api directory ==="
-        if [ -d "api" ]; then
-          echo "api directory exists"
-          ls -la api/
-        else
-          echo "api directory does not exist"
         fi
         
     - name: Install dependencies
@@ -49,10 +45,12 @@ jobs:
         if [ -f "Backend/package.json" ]; then
           echo "=== Installing from Backend directory ==="
           cd Backend
-          npm ci
+          # Use npm install instead of npm ci to handle missing lock file
+          npm install
         elif [ -f "package.json" ]; then
           echo "=== Installing from root directory ==="
-          npm ci
+          # Use npm install instead of npm ci to handle missing lock file
+          npm install
         else
           echo "ERROR: No package.json found!"
           exit 1
@@ -87,15 +85,22 @@ jobs:
           # Copy backend files from root
           cp package*.json deployment-package/
           cp -r api deployment-package/ 2>/dev/null || echo "No api directory found"
-          cp -r node_modules deployment-package/ 2>/dev/null || echo "No node_modules found"
           # Copy other necessary files
           find . -maxdepth 1 -name "*.js" -exec cp {} deployment-package/ \;
           find . -maxdepth 1 -name "*.json" -not -name "package*.json" -exec cp {} deployment-package/ \;
           # Copy .env files if they exist
           cp .env* deployment-package/ 2>/dev/null || echo "No .env files found"
         fi
+        
+        # Create package-lock.json in deployment package to avoid issues
+        cd deployment-package
+        if [ ! -f "package-lock.json" ] && [ -f "package.json" ]; then
+          echo "Creating package-lock.json..."
+          npm install --package-lock-only
+        fi
+        
         echo "=== Deployment package contents ==="
-        ls -la deployment-package/
+        ls -la
         
     - name: Upload Backend files
       uses: actions/upload-artifact@v4
@@ -142,22 +147,3 @@ jobs:
         app-name: 'TexasCollegeBackend'
         slot-name: 'Production'
         package: ./backend-app
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}  # Alternative to managed identity
-        
-    - name: Configure Azure App via CLI (Alternative to App Settings)
-      run: |
-        # Configure startup command
-        az webapp config set --resource-group your-resource-group --name TexasCollegeBackend --startup-file "npm start"
-        
-        # Set Node.js version
-        az webapp config set --resource-group your-resource-group --name TexasCollegeBackend --linux-fx-version "NODE|18-lts"
-        
-        echo "Azure configuration completed via CLI"
-        
-    - name: Verify deployment
-      run: |
-        echo "Deployment completed. Checking app status..."
-        # Wait a moment for the app to start
-        sleep 30
-        # You can add a health check here if your API has a health endpoint
-        # curl -f https://texascollegebackend.azurewebsites.net/health || echo "Health check failed"
