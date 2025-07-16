@@ -1,4 +1,4 @@
-name: Azure Static Web Apps - Fixed Content
+name: Azure Static Web Apps CI/CD - Optimized
 
 on:
   push:
@@ -40,253 +40,95 @@ jobs:
                return await coredemo.getIDToken()
            result-encoding: string
            
-      # Ensure we have deployable content
-      - name: Prepare Deployable Content
+      # Clean up before deployment to reduce file count
+      - name: Clean and Optimize Frontend
         run: |
-          echo "=== Preparing deployable content ==="
-          
-          # Check if Frontend directory exists
-          if [ ! -d "Frontend" ]; then
-            echo "Creating Frontend directory..."
-            mkdir -p Frontend
-          fi
-          
+          echo "=== Cleaning Frontend for deployment ==="
           cd Frontend
           
-          # Check for existing HTML files
-          html_found=false
-          if find . -name "*.html" -type f | grep -q .; then
-            echo "✅ HTML files found"
-            html_found=true
+          # Remove unnecessary files that might be included
+          echo "Removing development files..."
+          rm -rf node_modules/ || echo "No node_modules to remove"
+          rm -rf .git/ || echo "No .git to remove"
+          rm -rf coverage/ || echo "No coverage to remove"
+          rm -rf .nyc_output/ || echo "No .nyc_output to remove"
+          rm -rf cypress/ || echo "No cypress to remove"
+          rm -rf tests/ || echo "No tests to remove"
+          rm -rf test/ || echo "No test to remove"
+          rm -rf __tests__/ || echo "No __tests__ to remove"
+          
+          # Remove common development files
+          rm -f .env.local || echo "No .env.local"
+          rm -f .env.development || echo "No .env.development"
+          rm -f package-lock.json || echo "No package-lock.json"
+          rm -f yarn.lock || echo "No yarn.lock"
+          rm -f .gitignore || echo "No .gitignore"
+          rm -f README.md || echo "No README.md"
+          rm -f *.log || echo "No log files"
+          
+          # Remove common IDE/editor files
+          rm -rf .vscode/ || echo "No .vscode"
+          rm -rf .idea/ || echo "No .idea"
+          rm -f .DS_Store || echo "No .DS_Store"
+          
+          echo "Files remaining after cleanup:"
+          find . -type f | wc -l
+          echo "Directory structure after cleanup:"
+          ls -la
+          
+      # Create a minimal deployment package
+      - name: Create Minimal Deployment Package
+        run: |
+          echo "=== Creating minimal deployment package ==="
+          mkdir -p deploy-package
+          cd Frontend
+          
+          # Copy only essential files
+          if [ -f "index.html" ]; then
+            echo "Copying index.html"
+            cp index.html ../deploy-package/
           fi
           
-          # If no HTML files found, create a working index.html
-          if [ "$html_found" = false ]; then
-            echo "Creating index.html..."
-            cat > index.html << 'EOF'
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TCMS - Texas College Management System</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-        
-        .container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 3rem 2rem;
-            border-radius: 20px;
-            backdrop-filter: blur(15px);
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            max-width: 600px;
-            width: 90%;
-        }
-        
-        .logo {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            animation: bounce 2s infinite;
-        }
-        
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-10px); }
-            60% { transform: translateY(-5px); }
-        }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            font-weight: 300;
-        }
-        
-        h2 {
-            font-size: 1.8rem;
-            margin-bottom: 2rem;
-            opacity: 0.9;
-            font-weight: 400;
-        }
-        
-        .description {
-            font-size: 1.1rem;
-            margin-bottom: 2rem;
-            opacity: 0.8;
-            line-height: 1.6;
-        }
-        
-        .status {
-            background: rgba(76, 175, 80, 0.8);
-            padding: 1.5rem;
-            border-radius: 12px;
-            margin: 2rem 0;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 2rem 0;
-        }
-        
-        .feature {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 1rem;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .feature h3 {
-            margin-bottom: 0.5rem;
-            font-size: 1rem;
-        }
-        
-        .footer {
-            margin-top: 3rem;
-            font-size: 0.9rem;
-            opacity: 0.7;
-        }
-        
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 2rem 1rem;
-            }
-            h1 { font-size: 2rem; }
-            h2 { font-size: 1.4rem; }
-            .logo { font-size: 3rem; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🎓</div>
-        <h1>TCMS</h1>
-        <h2>Texas College Management System</h2>
-        
-        <p class="description">
-            A comprehensive platform for managing college operations, student records, 
-            faculty management, and academic processes.
-        </p>
-        
-        <div class="status">
-            <strong>✅ System Online</strong><br>
-            Frontend successfully deployed and operational
-        </div>
-        
-        <div class="features">
-            <div class="feature">
-                <h3>📚 Course Management</h3>
-                <p>Manage courses and curriculum</p>
-            </div>
-            <div class="feature">
-                <h3>👥 Student Portal</h3>
-                <p>Student registration and records</p>
-            </div>
-            <div class="feature">
-                <h3>🏫 Faculty System</h3>
-                <p>Faculty management and scheduling</p>
-            </div>
-        </div>
-        
-        <div class="footer">
-            <div class="pulse">
-                <strong>Status:</strong> Live • <strong>Environment:</strong> Production<br>
-                <strong>Build Date:</strong> <span id="buildDate"></span><br>
-                <strong>Version:</strong> 1.0.0
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        document.getElementById('buildDate').textContent = new Date().toLocaleString();
-        
-        // Add some interactivity
-        document.querySelector('.container').addEventListener('click', function() {
-            this.style.transform = 'scale(1.02)';
-            setTimeout(() => {
-                this.style.transform = 'scale(1)';
-            }, 100);
-        });
-        
-        // Add loading effect
-        window.addEventListener('load', function() {
-            document.querySelector('.container').style.opacity = '0';
-            document.querySelector('.container').style.transform = 'translateY(20px)';
-            document.querySelector('.container').style.transition = 'all 0.6s ease';
+          # Copy built assets if they exist
+          if [ -d "build" ]; then
+            echo "Copying build directory"
+            cp -r build/* ../deploy-package/ 2>/dev/null || echo "Failed to copy build contents"
+          elif [ -d "dist" ]; then
+            echo "Copying dist directory"
+            cp -r dist/* ../deploy-package/ 2>/dev/null || echo "Failed to copy dist contents"
+          elif [ -d "public" ]; then
+            echo "Copying public directory"
+            cp -r public/* ../deploy-package/ 2>/dev/null || echo "Failed to copy public contents"
+          else
+            # Copy common web files
+            echo "Copying common web files"
+            find . -maxdepth 2 -name "*.html" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No HTML files found"
+            find . -maxdepth 2 -name "*.css" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No CSS files found"
+            find . -maxdepth 2 -name "*.js" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No JS files found"
             
-            setTimeout(() => {
-                document.querySelector('.container').style.opacity = '1';
-                document.querySelector('.container').style.transform = 'translateY(0)';
-            }, 100);
-        });
-    </script>
-</body>
-</html>
-EOF
-            echo "✅ Index.html created successfully"
-          fi
-          
-          # If package.json exists, try to build
-          if [ -f "package.json" ]; then
-            echo "Found package.json, attempting build..."
-            npm install --silent 2>/dev/null || echo "npm install failed"
-            npm run build 2>/dev/null || echo "npm build failed or not configured"
-            
-            # Check if build created files
-            if [ -d "build" ] && [ -f "build/index.html" ]; then
-              echo "✅ Build successful, using build directory"
-              # Files will be served from build directory
-            elif [ -d "dist" ] && [ -f "dist/index.html" ]; then
-              echo "✅ Build successful, using dist directory"
-              # Files will be served from dist directory
+            # Copy src files if no build directory exists
+            if [ -d "src" ]; then
+              cp -r src ../deploy-package/ 2>/dev/null || echo "Failed to copy src"
             fi
           fi
           
-          echo "Final Frontend structure:"
-          ls -la
+          cd ..
+          echo "Deployment package contents:"
+          ls -la deploy-package/
+          echo "Total files in deployment package:"
+          find deploy-package -type f | wc -l
           
-          echo "Deployable HTML files:"
-          find . -name "*.html" -type f
-          
-      - name: Deploy with Correct Configuration
+      - name: Build And Deploy - Optimized
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_POND_0F8A83210 }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "./Frontend"
-          api_location: ""
-          output_location: ""
+          app_location: "./deploy-package" # Use our cleaned deployment package
+          api_location: "" # No API for now
+          output_location: "" # Files are already in the app_location
+          skip_build: true # Skip build since we've already prepared the files
           github_id_token: ${{ steps.idtoken.outputs.result }}
           ###### End of Repository/Build Configurations ######
           
