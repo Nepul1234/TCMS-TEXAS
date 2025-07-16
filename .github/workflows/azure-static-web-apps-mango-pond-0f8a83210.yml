@@ -1,4 +1,4 @@
-name: Azure Static Web Apps CI/CD
+name: Azure Static Web Apps CI/CD - Optimized
 
 on:
   push:
@@ -40,32 +40,95 @@ jobs:
                return await coredemo.getIDToken()
            result-encoding: string
            
-      # Check what was actually built
-      - name: Pre-build Directory Check
+      # Clean up before deployment to reduce file count
+      - name: Clean and Optimize Frontend
         run: |
-          echo "=== Frontend Directory Before Build ==="
-          if [ -d "Frontend" ]; then
-            ls -la Frontend/
-          else
-            echo "No Frontend directory found"
-            ls -la
+          echo "=== Cleaning Frontend for deployment ==="
+          cd Frontend
+          
+          # Remove unnecessary files that might be included
+          echo "Removing development files..."
+          rm -rf node_modules/ || echo "No node_modules to remove"
+          rm -rf .git/ || echo "No .git to remove"
+          rm -rf coverage/ || echo "No coverage to remove"
+          rm -rf .nyc_output/ || echo "No .nyc_output to remove"
+          rm -rf cypress/ || echo "No cypress to remove"
+          rm -rf tests/ || echo "No tests to remove"
+          rm -rf test/ || echo "No test to remove"
+          rm -rf __tests__/ || echo "No __tests__ to remove"
+          
+          # Remove common development files
+          rm -f .env.local || echo "No .env.local"
+          rm -f .env.development || echo "No .env.development"
+          rm -f package-lock.json || echo "No package-lock.json"
+          rm -f yarn.lock || echo "No yarn.lock"
+          rm -f .gitignore || echo "No .gitignore"
+          rm -f README.md || echo "No README.md"
+          rm -f *.log || echo "No log files"
+          
+          # Remove common IDE/editor files
+          rm -rf .vscode/ || echo "No .vscode"
+          rm -rf .idea/ || echo "No .idea"
+          rm -f .DS_Store || echo "No .DS_Store"
+          
+          echo "Files remaining after cleanup:"
+          find . -type f | wc -l
+          echo "Directory structure after cleanup:"
+          ls -la
+          
+      # Create a minimal deployment package
+      - name: Create Minimal Deployment Package
+        run: |
+          echo "=== Creating minimal deployment package ==="
+          mkdir -p deploy-package
+          cd Frontend
+          
+          # Copy only essential files
+          if [ -f "index.html" ]; then
+            echo "Copying index.html"
+            cp index.html ../deploy-package/
           fi
           
-      - name: Build And Deploy - Fixed Configuration
+          # Copy built assets if they exist
+          if [ -d "build" ]; then
+            echo "Copying build directory"
+            cp -r build/* ../deploy-package/ 2>/dev/null || echo "Failed to copy build contents"
+          elif [ -d "dist" ]; then
+            echo "Copying dist directory"
+            cp -r dist/* ../deploy-package/ 2>/dev/null || echo "Failed to copy dist contents"
+          elif [ -d "public" ]; then
+            echo "Copying public directory"
+            cp -r public/* ../deploy-package/ 2>/dev/null || echo "Failed to copy public contents"
+          else
+            # Copy common web files
+            echo "Copying common web files"
+            find . -maxdepth 2 -name "*.html" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No HTML files found"
+            find . -maxdepth 2 -name "*.css" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No CSS files found"
+            find . -maxdepth 2 -name "*.js" -exec cp {} ../deploy-package/ \; 2>/dev/null || echo "No JS files found"
+            
+            # Copy src files if no build directory exists
+            if [ -d "src" ]; then
+              cp -r src ../deploy-package/ 2>/dev/null || echo "Failed to copy src"
+            fi
+          fi
+          
+          cd ..
+          echo "Deployment package contents:"
+          ls -la deploy-package/
+          echo "Total files in deployment package:"
+          find deploy-package -type f | wc -l
+          
+      - name: Build And Deploy - Optimized
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_MANGO_POND_0F8A83210 }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "./Frontend" # App source code path
-          api_location: "" # Api source code path - optional  
-          output_location: "." # FIXED: Use current directory as artifact location
-          # Alternative fixes to try if above doesn't work:
-          # output_location: ""          # Empty string
-          # output_location: "public"    # If files are in public/
-          # output_location: "src"       # If files are in src/
-          # output_location: "Frontend"  # If artifacts are in Frontend itself
+          app_location: "./deploy-package" # Use our cleaned deployment package
+          api_location: "" # No API for now
+          output_location: "" # Files are already in the app_location
+          skip_build: true # Skip build since we've already prepared the files
           github_id_token: ${{ steps.idtoken.outputs.result }}
           ###### End of Repository/Build Configurations ######
           
