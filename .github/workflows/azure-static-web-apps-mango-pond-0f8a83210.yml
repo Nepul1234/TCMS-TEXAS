@@ -40,20 +40,68 @@ jobs:
                return await coredemo.getIDToken()
            result-encoding: string
            
-      # Debug step to understand your project structure
-      - name: Debug project structure
+      # COMPREHENSIVE DEBUGGING
+      - name: Debug Complete Project Structure
         run: |
-          echo "=== Root directory ==="
+          echo "=============================================="
+          echo "COMPLETE PROJECT STRUCTURE ANALYSIS"
+          echo "=============================================="
+          echo "Current working directory:"
+          pwd
+          echo ""
+          echo "Root directory contents:"
           ls -la
-          echo "=== Frontend directory ==="
+          echo ""
+          echo "Looking for Frontend directory:"
           if [ -d "Frontend" ]; then
+            echo "✅ Frontend directory exists"
+            echo "Frontend directory contents:"
             ls -la Frontend/
+            echo ""
             if [ -f "Frontend/package.json" ]; then
-              echo "=== Frontend package.json ==="
-              cat Frontend/package.json | grep -A 10 -B 5 '"scripts"'
+              echo "✅ Frontend package.json exists"
+              echo "Frontend package.json content:"
+              cat Frontend/package.json
+              echo ""
+              echo "Scripts section:"
+              cat Frontend/package.json | jq '.scripts' 2>/dev/null || grep -A 10 '"scripts"' Frontend/package.json
+            else
+              echo "❌ Frontend package.json NOT found"
             fi
           else
-            echo "Frontend directory not found"
+            echo "❌ Frontend directory NOT found"
+            echo "Available directories:"
+            find . -type d -name "*[Ff]ront*" -o -name "*[Cc]lient*" -o -name "*[Ww]eb*" -o -name "*[Aa]pp*" | head -10
+          fi
+          echo ""
+          echo "Looking for any package.json files:"
+          find . -name "package.json" -type f
+          echo ""
+          echo "Looking for common frontend files:"
+          find . -name "index.html" -o -name "App.js" -o -name "App.jsx" -o -name "App.tsx" -o -name "main.js" -o -name "main.ts" | head -10
+          
+      # TRY TO BUILD MANUALLY FIRST
+      - name: Manual Build Test
+        run: |
+          echo "=============================================="
+          echo "MANUAL BUILD TEST"
+          echo "=============================================="
+          if [ -d "Frontend" ] && [ -f "Frontend/package.json" ]; then
+            echo "Testing build in Frontend directory..."
+            cd Frontend
+            echo "Installing dependencies..."
+            npm install
+            echo "Running build..."
+            npm run build
+            echo "Checking what was created:"
+            ls -la
+            echo "Looking for common build directories:"
+            ls -la build/ 2>/dev/null && echo "✅ build/ directory found" || echo "❌ build/ directory not found"
+            ls -la dist/ 2>/dev/null && echo "✅ dist/ directory found" || echo "❌ dist/ directory not found" 
+            ls -la out/ 2>/dev/null && echo "✅ out/ directory found" || echo "❌ out/ directory not found"
+            ls -la public/ 2>/dev/null && echo "✅ public/ directory found" || echo "❌ public/ directory not found"
+          else
+            echo "No Frontend directory with package.json found for manual build test"
           fi
           
       - name: Build And Deploy
@@ -64,12 +112,13 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations ######
           app_location: "./Frontend" # App source code path
-          api_location: "" # Leave empty if no backend API for SWA
-          output_location: "build" # This should match your React build output
-          # Alternative common output locations:
-          # output_location: "dist" # For Vite
-          # output_location: "out" # For Next.js
-          # output_location: "" # If build files are in root of app_location
+          api_location: "" # Api source code path - optional
+          output_location: "" # CHANGED: Leave empty to auto-detect
+          # Alternative: Try different output locations based on your framework
+          # output_location: "build" # For Create React App
+          # output_location: "dist" # For Vite/Vue CLI
+          # output_location: "out" # For Next.js static export
+          app_build_command: "npm run build" # Explicit build command
           github_id_token: ${{ steps.idtoken.outputs.result }}
           ###### End of Repository/Build Configurations ######
           
