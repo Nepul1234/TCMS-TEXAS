@@ -63,220 +63,258 @@ import getAllStudentMarksRouter from "./routes/tutor.grading.tutor.route.js";
 import quizRoutes from "./routes/quiz.routes.js";
 import quizAnalyticsRoutes from "./routes/quiz.analytics.routes.js"; // Adjust path according to your project structure
 
-
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
-app.use(cors());
+// Azure-specific configurations
+const PORT = process.env.PORT || 8080; // Azure uses PORT environment variable
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Trust proxy for Azure App Service
+app.set('trust proxy', 1);
+
+// CORS configuration for Azure
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Define allowed origins based on environment
+    const allowedOrigins = NODE_ENV === 'production' 
+      ? [
+        process.env.FRONTEND_URL,
+        /^https:\/\/mango-pond-0f8a83210\.2\.azurestaticapps\.net$/,
+        /\.azurestaticapps\.net$/
+      ]
+      : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+    
+    // Check if origin is allowed
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      }
+      return allowedOrigin.test(origin);
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(cookieParser());
 
-app.use(morgan('combined'));
+// Enhanced logging for Azure
+if (NODE_ENV === 'production') {
+  app.use(morgan('combined'));
+} else {
+  app.use(morgan('dev'));
+}
 
+// Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Security middleware
+// Security middleware enhanced for Azure
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://api.example.com"] // Add your API domains
+    }
+  }
 }));
+
 app.use(compression());
 
-// Rate limiting
+// Enhanced rate limiting for Azure
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500,
+  max: NODE_ENV === 'production' ? 100 : 500, // Stricter in production
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later'
-  }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/api/health'
 });
 app.use('/api/', limiter);
 
+// Initialize Azure Storage on startup
+let azureInitialized = false;
+const initializeServices = async () => {
+  try {
+    await initializeAzureStorage();
+    azureInitialized = true;
+    console.log('Azure services initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Azure services:', error);
+    azureInitialized = false;
+  }
+};
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello World!' });
+// Health check endpoint for Azure
+app.get('/api/health', async (req, res) => {
+  try {
+    const azureConnected = await testAzureConnection();
+    
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: NODE_ENV,
+      services: {
+        azureBlob: azureConnected ? 'Connected' : 'Disconnected',
+        azureInitialized: azureInitialized
+      },
+      uptime: process.uptime()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Hello World! API is running on Azure',
+    environment: NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
 
-//admin routes
-
-// main auth route
+// Admin routes
 app.use('/api/auth', authRoutes);
-
-// admin profile update route
 app.use('/api/profile', profileUpdateRoutes);
-
-// admin profile data route
 app.use('/api/profileData', profileDataRoutes);
-
-// admin user registration route
-app.use('/api/register',userRegistrationRoutes);
-
-// admin course enrollment route
+app.use('/api/register', userRegistrationRoutes);
 app.use('/api/courses', courseEnrollmentRoutes);
-
-// admin student payment route
-app.use('/api/payments',studentPaymentRoutes);
-
-// admin student attendance route
-app.use('/api/attendance',studentAttendaceRoutes);
-
-// admin dashboard info route
+app.use('/api/payments', studentPaymentRoutes);
+app.use('/api/attendance', studentAttendaceRoutes);
 app.use('/api/dashboard', dashboardInfoRoutes);
-
-// admin user data route
 app.use('/api/userData', userDataRoutes);
-
-// admin income and expense route
 app.use('/api/incomeExpense', incomeExpenseRoutes);
-
-// admin time table route
 app.use('/api/timetables', timeTableRoutes);
-
-// admin loan requests route
-app.use('/api/loanRequests',loanRequestsRoutes);
-
-// admin hall booking route
+app.use('/api/loanRequests', loanRequestsRoutes);
 app.use('/api/hallBookings', hallBookingRoutes);
+app.use('/api/notices', adminNoticesRoutes);
 
-// admin notices route
-app.use('/api/notices',adminNoticesRoutes);
-
-// student routes
-
-// Registration Route
+// Student routes
 app.use("/api/registration", registrationrouter);
-
-// Course Registration Route
 app.use("/api/course_registration", courseRegistrationRouter);
-
-//student payment Route
 app.use("/api/student_payment", studentPaymentRouter);
-
-//student payment details Route
 app.use("/api/student_payment_details", getStudentPaymentDetailsRouter);
-
-//set student payment details Route
 app.use("/api/update_student_payment", setStudentPaymentDetailsRouter);
-
-//set timetable Route
-//app.use("/api/set", setTimeTablesRouter);
-
-//get course enrollment Route
 app.use("/api/get_course_enrollment", getCourseEnrollmentRouter);
-
-// Course View Route
 app.use("/api/course_view", getCourseView);
-
-//get student payment details by id Route
 app.use("/api/get_student_payment_details_byId", getStudentPaymentByIdRouter);
-
-//get student profile update Route
 app.use("/api/get_profile_update", getStudentProfileUpdateRouter);
-
-//get student profile data Route
 app.use("/api/get_student_profile_data", getStudentProfileDataRouter);
-
-// Course View Route
 app.use("/api/course_view", courseViewRouter);
-
-// Importing the schedule router
 app.use('/api/schedules', scheduleRouter);
-
-app.use('/api/virtual-classes', virtualClasses)
-
+app.use('/api/virtual-classes', virtualClasses);
 app.use('/api/files', authenticateToken, requireRole(['teacher']), azureBlobRoutes);
-
 app.use('/api/courses', authenticateToken, requireRole(['teacher', 'admin']), getTeacherCoursesRouter);
 app.use('/api/materials', authenticateToken, requireRole(['teacher', 'admin']), materialRoutes);
-
 app.use('/api/student-courses', authenticateToken, studentCourseRoutes);
-
 app.use('/api/events', eventRoutes);
-
 app.use('/api/dashboard', dashboardRoutes);
-
 app.use('/api/announcements/students', announcementRoutes);
-
 app.use('/api/student-results', studentResultsRoutes);
-
 app.use('/api/quiz', quizStudentRoutes);
 
-//Tutor routes
-
-// Get student profile data Route
+// Tutor routes
 app.use("/api/get.student.profile.data.routes", getStudentProfileData);
-
-
-// Update tutor profile data Route
 app.use("/api/update.tutor.profile.data", updateTutorProfileDataRouter);
-
-// Get tutor profile data Route
 app.use("/api/get_tutor_profile_data", getTutorProfileDataRouter);
-
-// Get tutor enrolled courses Route
 app.use("/api/getTutorcoursesGetByTutorId", getTutorEnrolledCoursesRouter);
-
-// Get tutor announcement Route
 app.use("/api/getTutorAnnouncement", getTutorAnnouncementRouter);
-
-// Set announcement publish Route
 app.use("/api/PublishAnnouncement", setAnnouncementPublish);
-
-// Update announcement Route
 app.use("/api/updateAnnouncements", announcementUpdate);
-
-// Delete announcement Route
 app.use("/api/deleteAnnouncements", announcementDelete);
-
-// Uncomment if needed
- app.use("/api/getAllVirtualClasses", getVirtualClasses);
-
- //Get course enrollments of all students
+app.use("/api/getAllVirtualClasses", getVirtualClasses);
 app.use("/api/get_course_enrollment", getCourseEnrollmentByID);
-
-// Get tutor earnings calculations Route
 app.use("/api/get_tutor_earnings", tutorEarningsCalculationRouter);
-
-// Get tutor dashboard data Route
 app.use("/api/get_tutor_dashboard_data", getTutorDashboardDataRouter);
-
-//get all student marks Route
-
 app.use("/api/get_all_student_marks", getAllStudentMarksRouter);
 
+// Quiz routes
 app.use("/api", quizRoutes);
-
 app.use('/api/quiz-analytics', quizAnalyticsRoutes);
-
 app.use('/api/quiz', quizStudentRoutes);
 
-
-
-app.get('/api/health', async (req, res) => {
-  const azureConnected = await testAzureConnection(); // ← Used here
-  
-  res.json({
-    services: {
-      azureBlob: azureConnected ? 'Connected' : 'Disconnected'
-    }
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found'
   });
 });
 
-
-
+// Global error handler
 app.use((err, req, res, next) => {
-    const statusCode = err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
-    res.status(statusCode).json({
-      success: false,
-      statusCode,
-      message,
-    });
+  console.error('Error:', err);
+  
+  const statusCode = err.statusCode || 500;
+  const message = NODE_ENV === 'production' 
+    ? (err.statusCode ? err.message : 'Internal Server Error')
+    : err.message || 'Internal Server Error';
+  
+  res.status(statusCode).json({
+    success: false,
+    statusCode,
+    message,
+    ...(NODE_ENV === 'development' && { stack: err.stack })
   });
-
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
 });
+
+// Graceful shutdown handler
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
+// Start server
+const startServer = async () => {
+  try {
+    await initializeServices();
+    
+    const server = app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log(`Environment: ${NODE_ENV}`);
+      console.log(`Azure services initialized: ${azureInitialized}`);
+    });
+    
+    // Handle server errors
+    server.on('error', (err) => {
+      console.error('Server error:', err);
+      process.exit(1);
+    });
+    
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
