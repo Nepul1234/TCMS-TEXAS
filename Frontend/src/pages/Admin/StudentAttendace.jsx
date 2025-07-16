@@ -5,7 +5,7 @@ import Button from '../../components/Buttons/Button.jsx';
 import { useModal } from "../../components/hooks/useModal.js";
 import QRScannerComponent from '../../components/others/QRScannerModel.jsx';
 import QRScanner from '../../components/others/QRScannerModel.jsx';
-import QrScanner from '../../components/ID generator/QRreader.jsx';
+//import QrScanner from '../../components/ID generator/QRreader.jsx';
 import Swal from 'sweetalert2';
 
 const StudentAttendanceInterface = () => {
