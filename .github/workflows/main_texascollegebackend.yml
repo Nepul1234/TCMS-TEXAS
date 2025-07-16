@@ -18,7 +18,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18.x'  # Changed from 22.x to 18.x for better compatibility
+        node-version: '22.x'  # Changed from 22.x to 18.x for better compatibility
         cache: 'npm'
         
     - name: Debug repository structure
