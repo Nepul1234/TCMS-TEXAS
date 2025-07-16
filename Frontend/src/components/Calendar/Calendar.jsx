@@ -3,7 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { Modal } from "../ui/modal";
+import { Modal } from "../ui/Modal";
 import { useModal } from "../hooks/useModal";
 import Button from "../Buttons/Button";
 
